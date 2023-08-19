@@ -75,4 +75,4 @@ All configuration files can be found in `configs/TESTR`, excluding those files n
 ```bash
 python tools/train_net.py --config-file <PATH_TO_CONFIG_FILE> --eval-only MODEL.WEIGHTS <PATH_TO_MODEL_FILE>
 ```
-# DA-TextSpotter-v2
+# DA-TextSpotter
