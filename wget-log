@@ -1,7 +1,0 @@
---2023-02-23 12:01:22--  https://bjbgp01.baidupcs.com/file/ea3a40c2er836ce0f93ddbae62c03c3a?bkt=en-cf7b18a7c51d907863b094aa8ffbc2cb83cd2118275badc9db90ade5b7f219411434e905bdba7223
-Resolving bjbgp01.baidupcs.com (bjbgp01.baidupcs.com)... 113.200.1.7
-Connecting to bjbgp01.baidupcs.com (bjbgp01.baidupcs.com)|113.200.1.7|:443... connected.
-HTTP request sent, awaiting response... 400 Bad Request
-Syntax error in Set-Cookie: - at position 1.
-2023-02-23 12:01:24 ERROR 400: Bad Request.
-
