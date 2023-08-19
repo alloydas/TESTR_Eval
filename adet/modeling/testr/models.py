@@ -41,7 +41,7 @@ class TESTR(nn.Module):
         self.num_decoder_layers      = cfg.MODEL.TRANSFORMER.DEC_LAYERS
         self.dim_feedforward         = cfg.MODEL.TRANSFORMER.DIM_FEEDFORWARD
         self.dropout                 = cfg.MODEL.TRANSFORMER.DROPOUT
-        self.activation              = "gelu"
+        self.activation              = "relu"
         self.return_intermediate_dec = True
         self.num_feature_levels      = cfg.MODEL.TRANSFORMER.NUM_FEATURE_LEVELS
         self.dec_n_points            = cfg.MODEL.TRANSFORMER.ENC_N_POINTS
@@ -195,12 +195,10 @@ class TESTR(nn.Module):
             outputs_class = self.ctrl_point_class[lvl](hs[lvl])
             tmp = self.ctrl_point_coord[lvl](hs[lvl])
             if reference.shape[-1] == 2:
-                tmp += reference
-                # tmp += reference[:, :, None, :]
+                tmp += reference[:, :, None, :]
             else:
                 assert reference.shape[-1] == 4
-                tmp += reference[..., :2]
-                #tmp += reference[:, :, None, :2]
+                tmp += reference[:, :, None, :2]
             outputs_texts.append(self.text_class(hs_text[lvl]))
             outputs_coord = sigmoid_offset(tmp, offset=self.sigmoid_offset)
             outputs_classes.append(outputs_class)

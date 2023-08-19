@@ -1,8 +1,8 @@
 _BASE_: "../Base-TESTRswinv1.yaml"
 DATASETS:
-  #TRAIN: ("mltbezier_word_poly_train", "totaltext_poly_train", "syntext1_poly_train", "syntext2_poly_train", "icdar2015_train",) 
-  TRAIN: ("syntext1_poly_train", "syntext2_poly_train", )
-  #TRAIN: ("under_train", "under_val",)
+  # TRAIN: ("mltbezier_word_poly_train", "totaltext_poly_train", "syntext1_poly_train", "syntext2_poly_train", "icdar2015_train",) 
+  #TRAIN: ("syntext1_poly_train", "syntext2_poly_train", )
+  TRAIN: ("totaltext_poly_train",)
   TEST: ("totaltext_poly_val",)
   #TEST: ("under",)
 MODEL:

@@ -11,6 +11,7 @@ from detectron2.structures import BoxMode
 from shapely.geometry import Polygon
 from detectron2.data import DatasetCatalog, MetadataCatalog
 from itertools import chain
+
 """
 This file contains functions to parse COCO-format text annotations into dicts in "Detectron2 format".
 """
@@ -73,10 +74,15 @@ def load_text_json(json_file, image_root, dataset_name=None, extra_annotation_ke
     id_map = None
     if dataset_name is not None:
         meta = MetadataCatalog.get(dataset_name)
-        cat_ids = sorted(coco_api.getCatIds())
-        cats = coco_api.loadCats(cat_ids)
+        # cat_ids = sorted(coco_api.getCatIds())
+        cat_ids = [1]
+        cats = [{'supercategory': 'beverage', 'id': 1, 'keypoints': ['mean', 'xmin', 'x2', 'x3', 'xmax', 'ymin', 'y2', 'y3', 'ymax', 'cross'], 'name': 'text'}]
+        # cats = coco_api.loadCats(cat_ids)
+        print(cats)
         # The categories in a custom json file may not be sorted.
         thing_classes = [c["name"] for c in sorted(cats, key=lambda x: x["id"])]
+        # thing_classes = ['text']
+        print(thing_classes)
         meta.thing_classes = thing_classes
 
         # In COCO, certain category ids are artificially removed,
@@ -87,6 +93,8 @@ def load_text_json(json_file, image_root, dataset_name=None, extra_annotation_ke
         # It works by looking at the "categories" field in the json, therefore
         # if users' own json also have incontiguous ids, we'll
         # apply this mapping as well but print a warning.
+        print(cat_ids)
+
         if not (min(cat_ids) == 1 and max(cat_ids) == len(cat_ids)):
             if "coco" not in dataset_name:
                 logger.warning(
@@ -96,7 +104,7 @@ Category ids in annotations are not in [1, #categories]! We'll apply a mapping f
                 )
         id_map = {v: i for i, v in enumerate(cat_ids)}
         meta.thing_dataset_id_to_contiguous_id = id_map
-
+        
     # sort indices for reproducible results
     img_ids = sorted(coco_api.imgs.keys())
     # imgs is a list of dicts, each looks something like:
@@ -169,7 +177,6 @@ Category ids in annotations are not in [1, #categories]! We'll apply a mapping f
             obj = {key: anno[key] for key in ann_keys if key in anno}
 
             segm = anno.get("segmentation", None)
-            #print(segm)
             if segm:  # either list[list[float]] or dict(RLE)
                 if not isinstance(segm, dict):
                     # filter out invalid polygons (< 3 points)
@@ -179,14 +186,9 @@ Category ids in annotations are not in [1, #categories]! We'll apply a mapping f
                         continue  # ignore this instance
                 obj["segmentation"] = segm
 
-
             bezierpts = anno.get("bezier_pts", None)
             # Bezier Points are the control points for BezierAlign Text recognition (BAText)
-            #print(bezierpts)
             if bezierpts:  # list[float]
-                #print("beiz")
-                #print(bezierpts)
-                #print(len(bezierpts))
                 bezierpts = np.array(bezierpts)
                 Mtk = lambda n, t, k: t ** k * (1 - t) ** (n - k) * n_over_k(n, k)
                 BezierCoeff = lambda ts: [[Mtk(3, t, k) for k in range(4)] for t in ts]
@@ -206,32 +208,18 @@ Category ids in annotations are not in [1, #categories]! We'll apply a mapping f
                 obj["beziers"] = bezierpts
                 obj["polygons"] = poly
                 segm = [bezierpts]
-                if not isinstance(segm, dict):
-                    # filter out invalid polygons (< 3 points)
-                    segm = [poly for poly in segm if len(poly) % 2 == 0 and len(poly) >= 6]
-                    if len(segm) == 0:
-                        num_instances_without_valid_segmentation += 1
-                        continue  # ignore this instance
-                obj["segmentation"] = segm
-                #print(segm)
+                
 
             polypts = anno.get("polys", None)
             if polypts:
-                print("Polys")
-                print(polypts)
-                print(len(polypts))
                 obj["polygons"] = polypts
-                segm = [polypts]
-                if not isinstance(segm, dict):
-                    # filter out invalid polygons (< 3 points)
-                    segm = [poly for poly in segm if len(poly) % 2 == 0 and len(poly) >= 6]
-                    if len(segm) == 0:
-                        num_instances_without_valid_segmentation += 1
-                        continue  # ignore this instance
-                obj["segmentation"] = segm
 
             text = anno.get("rec", None)
             if text:
+                # print(text)
+
+                # text1 = ctc_decode(text)
+                # print(text1)
                 obj["text"] = text
 
             obj["bbox_mode"] = BoxMode.XYWH_ABS
@@ -240,8 +228,6 @@ Category ids in annotations are not in [1, #categories]! We'll apply a mapping f
             objs.append(obj)
         record["annotations"] = objs
         dataset_dicts.append(record)
-        #assert 1==0
-        #print(dataset_dicts)
 
     if num_instances_without_valid_segmentation > 0:
         logger.warning(
@@ -252,3 +238,24 @@ Category ids in annotations are not in [1, #categories]! We'll apply a mapping f
         )
     return dataset_dicts
 
+# def ctc_decode( rec):
+#         # ctc decoding
+#         last_char = False
+#         CTLABELS = [" ","!",'"',"#","$","%","&","'","(",")","*","+",",","-",".","/","0","1","2","3","4","5","6","7","8","9",":",";","<","=",">","?","@","A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z","[","\\","]","^","_","`","a","b","c","d","e","f","g","h","i","j","k","l","m","n","o","p","q","r","s","t","u","v","w","x","y","z","{","|","}","~","ˋ","ˊ","﹒","ˀ","˜","ˇ","ˆ","˒","‑",'´', "~"]
+
+
+#         s = ''
+#         for c in rec:
+#             c = int(c)
+#             if c < 105 - 1:
+#                 if last_char != c:
+#                     if 105 == 96:
+#                         s += CTLABELS[c]
+#                         last_char = c
+#                     else:
+#                         s += (CTLABELS[c])
+#                         last_char = c
+#             elif c == 105 -1:
+#                 s += u'口'
+#             else:
+#                 last_char = False

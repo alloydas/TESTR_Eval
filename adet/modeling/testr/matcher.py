@@ -50,14 +50,21 @@ class CtrlPointHungarianMatcher(nn.Module):
         """
         with torch.no_grad():
             bs, num_queries = outputs["pred_logits"].shape[:2]
+            #print(num_queries)
 
             # We flatten to compute the cost matrices in a batch
             out_prob = outputs["pred_logits"].flatten(0, 1).sigmoid()
             # [batch_size, n_queries, n_points, 2] --> [batch_size * num_queries, n_points * 2]
             out_pts = outputs["pred_ctrl_points"].flatten(0, 1).flatten(-2)
+      
+            
+            
+            
 
             # Also concat the target labels and boxes
             tgt_pts = torch.cat([v["ctrl_points"] for v in targets]).flatten(-2)
+            
+
             neg_cost_class = (1 - self.alpha) * (out_prob ** self.gamma) * \
                 (-(1 - out_prob + 1e-8).log())
             pos_cost_class = self.alpha * \
@@ -68,11 +75,11 @@ class CtrlPointHungarianMatcher(nn.Module):
             cost_kpts = torch.cdist(out_pts, tgt_pts, p=1)
             
             C = self.class_weight * cost_class + self.coord_weight * cost_kpts
+            
             C = C.view(bs, num_queries, -1).cpu()
 
             sizes = [len(v["ctrl_points"]) for v in targets]
-            indices = [linear_sum_assignment(
-                c[i]) for i, c in enumerate(C.split(sizes, -1))]
+            indices = [linear_sum_assignment(c[i]) for i, c in enumerate(C.split(sizes, -1))]
             return [(torch.as_tensor(i, dtype=torch.int64), torch.as_tensor(j, dtype=torch.int64)) for i, j in indices]
 
 

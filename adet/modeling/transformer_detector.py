@@ -135,13 +135,13 @@ class TransformerDetector(nn.Module):
             weight_dict.update(aux_weight_dict)
 
         enc_losses = ['labels', 'boxes']
-        #dec_losses = ['labels', 'ctrl_points', 'texts']
-        #dec_losses = ['labels', 'ctrl_points',  'ctc']
+        
+        #dec_losses = ['labels', 'ctrl_points', 'ctc']
         dec_losses = ['labels', 'ctrl_points', 'texts']
-
+        #dec_losses = ['labels', 'ctrl_points', 'texts', 'ctc']
 
         self.criterion = SetCriterion(self.testr.num_classes, box_matcher, point_matcher,
-                                      weight_dict, enc_losses, dec_losses, self.testr.num_ctrl_points, 
+                                      weight_dict, enc_losses, dec_losses, self.testr.num_ctrl_points, self.testr.voc_size, 
                                       focal_alpha=loss_cfg.FOCAL_ALPHA, focal_gamma=loss_cfg.FOCAL_GAMMA)
 
         pixel_mean = torch.Tensor(cfg.MODEL.PIXEL_MEAN).to(self.device).view(3, 1, 1)
@@ -182,6 +182,7 @@ class TransformerDetector(nn.Module):
         """
         images = self.preprocess_image(batched_inputs)
         output = self.testr(images)
+
 
         if self.training:
             gt_instances = [x["instances"].to(self.device) for x in batched_inputs]

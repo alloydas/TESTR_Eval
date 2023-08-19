@@ -122,10 +122,12 @@ class LexiconMatcher:
 
     def _load_lexicon(self, dataset, lexicon_type):
         if not self.use_lexicon:
+            print("Hi  you are not checkhing lexicon")
             return
         g_lexicon_path, g_pairlist_path, w_lexicon_path, w_pairlist_path, s_lexicon_path, s_pairlist_path = self._get_lexicon_path(
             dataset)
         if lexicon_type in (1, 2):
+            print("Hi you are checkhing lexicon")
             # generic/weak lexicon
             lexicon_path = g_lexicon_path if lexicon_type == 1 else w_lexicon_path
             pairlist_path = g_pairlist_path if lexicon_type == 1 else w_pairlist_path

@@ -47,7 +47,7 @@ class SetCriterion(nn.Module):
         2) we supervise each pair of matched ground-truth / prediction (supervise class and box)
     """
 
-    def __init__(self, num_classes, enc_matcher, dec_matcher, weight_dict, enc_losses, dec_losses, num_ctrl_points, focal_alpha=0.25, focal_gamma=2.0):
+    def __init__(self, num_classes, enc_matcher, dec_matcher, weight_dict, enc_losses, dec_losses, num_ctrl_points, voc_size, focal_alpha=0.25, focal_gamma=2.0):
         """ Create the criterion.
         Parameters:
             num_classes: number of object categories, omitting the special no-object category
@@ -66,6 +66,7 @@ class SetCriterion(nn.Module):
         self.focal_alpha = focal_alpha
         self.focal_gamma = focal_gamma
         self.num_ctrl_points = num_ctrl_points
+        self.voc_size = voc_size
 
     def loss_labels(self, outputs, targets, indices, num_inst, log=False):
         """Classification loss (NLL)
@@ -143,20 +144,16 @@ class SetCriterion(nn.Module):
         target_ctrl_points = torch.cat([t['texts'][i] for t, (_, i) in zip(targets, indices)], dim=0)
         return {'loss_texts': F.cross_entropy(src_texts.transpose(1, 2), target_ctrl_points.long())}
 
-    @torch.no_grad()
     def loss_ctc(self, outputs, targets, indices, num_inst):
         voc_size = 96
         idx = self._get_src_permutation_idx(indices)
         src_texts = outputs['pred_texts'][idx]
-        target_texts = torch.cat([t['texts'][i] for t, (_, i) in zip(targets, indices)], dim=0)
-        loss_cet = sigmoid_focal_loss(src_texts, target_texts, num_inst,
-                                     alpha=self.focal_alpha, gamma=self.focal_gamma) * src_texts.shape[1]
-        #target_text = torch.cat([t['texts'][i] for t, (_, i) in zip(targets, indices)], dim=0)
-        #target_lengths = torch.full(size=(target_text.shape[1],), fill_value=target_text.shape[0], dtype=torch.long)
-        #x = F.log_softmax(src_texts, dim=-1)
-        #input_lengths = torch.full((x.shape[1],), x.shape[0], dtype=torch.long)
-        #ctc = F.ctc_loss(x, target_text.view(-1), input_lengths, target_lengths, blank=voc_size, zero_infinity=True)  
-        losses = {'loss_ctc': loss_cet} 
+        target_text = torch.cat([t['texts'][i] for t, (_, i) in zip(targets, indices)], dim=0)
+        target_lengths = torch.full(size=(target_text.shape[1],), fill_value=target_text.shape[0], dtype=torch.long)
+        x = F.log_softmax(src_texts, dim=-1)
+        input_lengths = torch.full((x.shape[1],), x.shape[0], dtype=torch.long)
+        ctc = F.ctc_loss(x, target_text.view(-1), input_lengths, target_lengths, blank=voc_size, zero_infinity=True)  
+        losses = {'loss_ctc': ctc} 
         return losses
 
 

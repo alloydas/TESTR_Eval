@@ -299,9 +299,9 @@ def main(args):
     """
     trainer = Trainer(cfg)
     
-    #for name, param in trainer.model.named_parameters():
-    #    if 'text' not in name:
-    #        param.requires_grad = False
+    for name, param in trainer.model.named_parameters():
+        if 'encoder' in name:
+            param.requires_grad = False
     trainer.resume_or_load(resume=args.resume)
     if cfg.TEST.AUG.ENABLED:
         trainer.register_hooks(

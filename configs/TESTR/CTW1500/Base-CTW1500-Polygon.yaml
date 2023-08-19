@@ -1,8 +1,13 @@
 _BASE_: "../Base-TESTRswinv1.yaml"
 MODEL:
+  # BATEXT:
+  #   USE_AET: True
+  #   VOC_SIZE: 5462
+  #   CUSTOM_DICT: "chn_cls_list"
   TRANSFORMER:
     INFERENCE_TH_TEST: 0.7
-    NUM_CHARS: 100
+    VOC_SIZE: 5463
+    # NUM_CHARS: 100
     USE_POLYGON: True
     NUM_CTRL_POINTS: 16
     LOSS:
@@ -14,6 +19,7 @@ INPUT:
   MIN_SIZE_TEST: 1000
   MAX_SIZE_TRAIN: 1333
 TEST:
-  USE_LEXICON: False
+  USE_LEXICON: True
   LEXICON_TYPE: 1
+  WEIGHTED_EDIT_DIST: False
 

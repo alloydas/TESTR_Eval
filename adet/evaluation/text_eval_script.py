@@ -299,6 +299,8 @@ def evaluate_method(gtFilePath, submFilePath, evaluationParams):
             gtPols.append(gtPol)
             gtPolPoints.append(points)
 
+            # print(transcription)
+
             #On word spotting we will filter some transcriptions with special characters
             if evaluationParams['WORD_SPOTTING'] :
                 if dontCare == False : 
@@ -307,6 +309,8 @@ def evaluate_method(gtFilePath, submFilePath, evaluationParams):
                     else:
                         transcription = include_in_dictionary_transcription(transcription)
 
+            # print("gt_file")
+            # print(transcription)
             gtTrans.append(transcription)
             if dontCare:
                 gtDontCarePolsNum.append( len(gtPols)-1 ) 
@@ -317,12 +321,15 @@ def evaluate_method(gtFilePath, submFilePath, evaluationParams):
         if resFile in subm:
             
             detFile = rrc_evaluation_funcs.decode_utf8(subm[resFile]) 
+            # print(detFile)
                     
             pointsList,confidencesList,transcriptionsList = rrc_evaluation_funcs.get_tl_line_values_from_file_contents_det(detFile,evaluationParams['CRLF'],evaluationParams['LTRB'],True,evaluationParams['CONFIDENCES'])
             
             for n in range(len(pointsList)):
                 points = pointsList[n]
                 transcription = transcriptionsList[n]
+                # print("resfile")
+                # print(transcription)
                 
                 if evaluationParams['LTRB']:
                     detRect = Rectangle(*points)
@@ -386,6 +393,8 @@ def evaluate_method(gtFilePath, submFilePath, evaluationParams):
                                     # correct = gtTrans[gtNum].upper() == detTrans[detNum].upper()
                                 else:
                                     try:
+                                        # print(gtTrans[gtNum])
+                                        # print(detTrans[detNum])
                                         correct = transcription_match(gtTrans[gtNum].upper(),detTrans[detNum].upper(),evaluationParams['SPECIAL_CHARACTERS'],evaluationParams['ONLY_REMOVE_FIRST_LAST_CHARACTER'])==True
                                     except: # empty
                                         correct = False

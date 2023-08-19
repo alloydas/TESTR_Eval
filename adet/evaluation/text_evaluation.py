@@ -19,6 +19,7 @@ from detectron2.evaluation.evaluator import DatasetEvaluator
 import glob
 import shutil
 from shapely.geometry import Polygon, LinearRing
+from shapely.validation import make_valid
 from adet.evaluation import text_eval_script
 import zipfile
 import pickle
@@ -55,8 +56,8 @@ class TextEvaluator(DatasetEvaluator):
             with open(self.use_customer_dictionary, 'rb') as fp:
                 self.CTLABELS = pickle.load(fp)
         self._lexicon_matcher = LexiconMatcher(dataset_name, cfg.TEST.LEXICON_TYPE, cfg.TEST.USE_LEXICON, 
-                                               self.CTLABELS + [NULL_CHAR],
-                                               weighted_ed=cfg.TEST.WEIGHTED_EDIT_DIST)
+                                              self.CTLABELS + [NULL_CHAR],
+                                              weighted_ed=cfg.TEST.WEIGHTED_EDIT_DIST)
         assert(int(self.voc_size - 1) == len(self.CTLABELS)), "voc_size is not matched dictionary size, got {} and {}.".format(int(self.voc_size - 1), len(self.CTLABELS))
 
         json_file = PathManager.get_local_path(self._metadata.json_file)
@@ -74,7 +75,8 @@ class TextEvaluator(DatasetEvaluator):
             self._text_eval_gt_path = "datasets/evaluation/gt_icdar2015.zip"
             self._word_spotting = False
         else:
-            self._text_eval_gt_path = ""
+            self._text_eval_gt_path = "datasets/evaluation/gt_underwater.zip"
+            self._word_spotting = False
         self._text_eval_confidence = cfg.MODEL.FCOS.INFERENCE_TH_TEST
 
     def reset(self):
@@ -158,13 +160,19 @@ class TextEvaluator(DatasetEvaluator):
                 cors = ptr[0].split(',')
                 assert(len(cors) %2 == 0), 'cors invalid.'
                 pts = [(int(cors[j]), int(cors[j+1])) for j in range(0,len(cors),2)]
+                # pgt = Polygon(pts)
                 try:
                     pgt = Polygon(pts)
+
                 except Exception as e:
                     print(e)
                     print('An invalid detection in {} line {} is removed ... '.format(i, iline))
                     continue
-                
+                # print(pgt)
+                # # pgt.is_valid
+                # # pgt = make_valid(pgt)
+                # pgt = pgt.buffer(0)
+                # print(pgt)
                 if not pgt.is_valid:
                     print('An invalid detection in {} line {} is removed ... '.format(i, iline))
                     continue
@@ -264,7 +272,7 @@ class TextEvaluator(DatasetEvaluator):
             s = self.decode(rec)
             word = self._lexicon_matcher.find_match_word(s, img_id=str(img_id), scores=rec_score)
             if word is None:
-                continue
+               continue
             result = {
                 "image_id": img_id,
                 "category_id": 1,

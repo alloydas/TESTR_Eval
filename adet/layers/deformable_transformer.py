@@ -19,8 +19,6 @@ from torch.nn.modules.container import T
 
 from adet.utils.misc import inverse_sigmoid
 from .ms_deform_attn import MSDeformAttn
-from .utils import MLP, gen_point_pos_embed
-from timm.models.layers import DropPath
 
 
 class DeformableTransformer(nn.Module):
@@ -28,7 +26,6 @@ class DeformableTransformer(nn.Module):
                  num_encoder_layers=6, num_decoder_layers=6, dim_feedforward=1024, dropout=0.1,
                  activation="relu", return_intermediate_dec=False,
                  num_feature_levels=4, dec_n_points=4,  enc_n_points=4, 
-                 num_ctrl_points =16,
                  num_proposals=300):
         super().__init__()
 
@@ -55,7 +52,6 @@ class DeformableTransformer(nn.Module):
         self.enc_output_norm = nn.LayerNorm(d_model)
         self.pos_trans = nn.Linear(d_model, d_model)
         self.pos_trans_norm = nn.LayerNorm(d_model)
-        self.num_ctrl_points = num_ctrl_points
 
         self._reset_parameters()
 
@@ -124,24 +120,6 @@ class DeformableTransformer(nn.Module):
         valid_ratio = torch.stack([valid_ratio_w, valid_ratio_h], -1)
         return valid_ratio
 
-    def init_control_points_from_anchor(self, reference_points_anchor):
-        # reference_points_anchor: bs, nq, 4
-        # return size:
-        # - reference_points: (bs, nq, n_pts, 2)
-        assert reference_points_anchor.shape[-1] == 4
-        reference_points = reference_points_anchor[:, :, None, :].repeat(1, 1, self.num_ctrl_points, 1)
-        pts_per_side = self.num_ctrl_points // 2
-        reference_points[:, :, 0, 0].sub_(reference_points[:, :, 0, 2] / 2)
-        reference_points[:, :, 1:pts_per_side, 0] = reference_points[:, :, 1:pts_per_side, 2] / (pts_per_side - 1)
-        reference_points[:, :, :pts_per_side, 0] = torch.cumsum(reference_points[:, :, :pts_per_side, 0], dim=-1)
-        reference_points[:, :, pts_per_side:, 0] = reference_points[:, :, :pts_per_side, 0].flip(dims=[-1])
-        reference_points[:, :, :pts_per_side, 1].sub_(reference_points[:, :, :pts_per_side, 3] / 2)
-        reference_points[:, :, pts_per_side:, 1].add_(reference_points[:, :, pts_per_side:, 3] / 2)
-        reference_points = torch.clamp(reference_points[:, :, :, :2], 0, 1)
-
-        return reference_points
-
-
     def forward(self, srcs, masks, pos_embeds, query_embed, text_embed, text_pos_embed, text_mask=None):
         # for SMCA
         bs, c, h_16, w_16 = srcs[0].shape
@@ -202,22 +180,47 @@ class DeformableTransformer(nn.Module):
         topk_coords_unact = torch.gather(enc_outputs_coord_unact, 1, topk_proposals.unsqueeze(-1).repeat(1, 1, 4))
         topk_coords_unact = topk_coords_unact.detach()
         reference_points = topk_coords_unact.sigmoid()
-        reference_points1 = reference_points
-        # print(reference_points.shape)
-        reference_points = self.init_control_points_from_anchor(reference_points) #added line
-        # print(reference_points.shape)
-
         init_reference_out = reference_points
         query_pos = self.pos_trans_norm(self.pos_trans(self.get_proposal_pos_embed(topk_coords_unact)))
         query_embed = query_embed.unsqueeze(0).expand(bs, -1, -1, -1)
         query_pos = query_pos[:, :, None, :].repeat(1, 1, query_embed.shape[2], 1)
         text_embed = text_embed.unsqueeze(0).expand(bs, -1, -1, -1)
 
-        query_pos = None
-        #print(reference_points.shape)
+        # for SMCA
+        tgt = torch.zeros(30
+            , bs, self.d_model, device=query_embed.device)
+        mem1 = memory[:, level_start_index[0]: level_start_index[1], :]
+        mem2 = memory[:, level_start_index[1]: level_start_index[2], :]
+        mem3 = memory[:, level_start_index[2]:, :]
+        memory_flatten = []
+        for m in [mem1, mem2, mem3]:
+            memory_flatten.append(m.permute(1, 0, 2))
+        #query_embed = query_embed.unsqueeze(1).repeat(1, bs, 1)
+
+        grid_y_16, grid_x_16 = torch.meshgrid(torch.arange(0, h_16), torch.arange(0, w_16))
+        grid_16 = torch.stack((grid_x_16, grid_y_16), 2).float()
+        grid_16.requires_grad = False
+        grid_16 = grid_16.type_as(srcs[0])
+        grid_16 = grid_16.unsqueeze(0).permute(0, 3, 1, 2).flatten(2).permute(2, 0, 1)
+        grid_16 = grid_16.repeat(1, bs * 8, 1)
+
+        grid_y_32, grid_x_32 = torch.meshgrid(torch.arange(0, h_32), torch.arange(0, w_32))
+        grid_32 = torch.stack((grid_x_32, grid_y_32), 2).float()
+        grid_32.requires_grad = False
+        grid_32 = grid_32.type_as(srcs[0])
+        grid_32 = grid_32.unsqueeze(0).permute(0, 3, 1, 2).flatten(2).permute(2, 0, 1)
+        grid_32 = grid_32.repeat(1, bs * 8, 1)
+
+        grid_y_64, grid_x_64 = torch.meshgrid(torch.arange(0, h_64), torch.arange(0, w_64))
+        grid_64 = torch.stack((grid_x_64, grid_y_64), 2).float()
+        grid_64.requires_grad = False
+        grid_64 = grid_64.type_as(srcs[0])
+        grid_64 = grid_64.unsqueeze(0).permute(0, 3, 1, 2).flatten(2).permute(2, 0, 1)
+        grid_64 = grid_64.repeat(1, bs * 8, 1)
+
         # decoder
         hs, hs_text, inter_references = self.decoder(
-            query_embed, text_embed, reference_points,reference_points1, memory, spatial_shapes, 
+            query_embed, text_embed, reference_points, memory, spatial_shapes, 
             level_start_index, valid_ratios, query_pos, text_pos_embed, mask_flatten, text_mask
         )
 
@@ -295,32 +298,6 @@ class DeformableTransformerEncoder(nn.Module):
             output = layer(output, pos, reference_points, spatial_shapes, level_start_index, padding_mask)
 
         return output
-
-class CirConv(nn.Module):
-    def __init__(self, d_model, n_adj=4):
-        super(CirConv, self).__init__()
-        self.n_adj = n_adj
-        self.conv = nn.Conv1d(d_model, d_model, kernel_size=self.n_adj*2+1)
-        self.relu = nn.ReLU(inplace=True)
-        self.norm = nn.BatchNorm1d(d_model)
-
-        for m in self.modules():
-            if isinstance(m, nn.Conv1d):
-                m.weight.data.normal_(0.0, 0.01)
-                if m.bias is not None:
-                    nn.init.constant_(m.bias, 0)
-            if isinstance(m, nn.BatchNorm1d):
-                nn.init.constant_(m.bias, 0)
-                nn.init.constant_(m.weight, 1.0)
-
-    def forward(self, tgt):
-        shape = tgt.shape
-        tgt = (tgt.flatten(0, 1)).permute(0,2,1).contiguous()  # (bs*nq, dim, n_pts)
-        tgt = torch.cat([tgt[..., -self.n_adj:], tgt, tgt[..., :self.n_adj]], dim=2)
-        tgt = self.relu(self.norm(self.conv(tgt)))
-        tgt = tgt.permute(0,2,1).contiguous().reshape(shape)
-        return tgt
-
 
 
 class DeformableTransformerDecoderLayer(nn.Module):
@@ -436,15 +413,9 @@ class DeformableCompositeTransformerDecoderLayer(nn.Module):
         self.norm_cross = nn.LayerNorm(d_model)
 
         # self attention (intra)
-        self.attn_intra = nn.MultiheadAttention(d_model, n_heads, dropout=0.)
-        self.circonv = CirConv(d_model)
-        self.norm_fuse = nn.LayerNorm(d_model)
-        self.mlp_fuse = nn.Linear(d_model, d_model)
-        self.drop_path = DropPath(0.1)
+        self.attn_intra = nn.MultiheadAttention(d_model, n_heads, dropout=dropout)
+        self.dropout_intra = nn.Dropout(dropout)
         self.norm_intra = nn.LayerNorm(d_model)
-        #self.attn_intra = nn.MultiheadAttention(d_model, n_heads, dropout=dropout)
-        #self.dropout_intra = nn.Dropout(dropout)
-        #self.norm_intra = nn.LayerNorm(d_model)
 
         # self attention (inter)
         self.attn_inter = nn.MultiheadAttention(d_model, n_heads, dropout=dropout)
@@ -462,11 +433,6 @@ class DeformableCompositeTransformerDecoderLayer(nn.Module):
         ## (factorized) attn for text branch
         ## TODO: different embedding dim for text/loc?
         # attention between text embeddings belonging to the same object query
-        self.attn_intra_text = nn.MultiheadAttention(d_model, n_heads, dropout=0.)
-        self.circonv_text = CirConv(d_model)
-        self.norm_fuse_text = nn.LayerNorm(d_model)
-        self.mlp_fuse_text = nn.Linear(d_model, d_model)
-        self.drop_path_text = DropPath(0.1)
         self.attn_intra_text = nn.MultiheadAttention(d_model, n_heads, dropout=dropout)
         self.dropout_intra_text = nn.Dropout(dropout)
         self.norm_intra_text = nn.LayerNorm(d_model)
@@ -506,7 +472,7 @@ class DeformableCompositeTransformerDecoderLayer(nn.Module):
         tgt = self.norm3_text(tgt)
         return tgt
 
-    def forward(self, tgt, query_pos, tgt_text, query_pos_text, reference_points, reference_points1, src, src_spatial_shapes, level_start_index, src_padding_mask=None, text_padding_mask=None):
+    def forward(self, tgt, query_pos, tgt_text, query_pos_text, reference_points, src, src_spatial_shapes, level_start_index, src_padding_mask=None, text_padding_mask=None):
         ## input size
         # tgt:                batch_size, n_objects, n_points, embed_dim
         # query_pos:          batch_size, n_objects, n_points, embed_dim
@@ -515,24 +481,14 @@ class DeformableCompositeTransformerDecoderLayer(nn.Module):
         # query_pos_text:     batch_size, n_objects, n_words, embed_dim
 
         # self attention (intra)
-        shortcut = tgt
         q = k = self.with_pos_embed(tgt, query_pos)
-        tgt = self.attn_intra(
-                q.flatten(0, 1).transpose(0, 1),
-                k.flatten(0, 1).transpose(0, 1),
-                tgt.flatten(0, 1).transpose(0, 1),
-            )[0].transpose(0, 1).reshape(q.shape)
-        tgt_circonv = self.drop_path(self.circonv(shortcut+query_pos))
-        tgt = shortcut + self.norm_intra(self.drop_path(tgt) + tgt_circonv)
-        tgt = tgt + self.drop_path(self.norm_fuse(self.mlp_fuse(tgt)))
-        # q = k = self.with_pos_embed(tgt, query_pos)
-        # tgt2 = self.attn_intra(
-        #     q.flatten(0, 1).transpose(0, 1), 
-        #     k.flatten(0, 1).transpose(0, 1), 
-        #     tgt.flatten(0, 1).transpose(0, 1),
-        # )[0].transpose(0, 1).reshape(q.shape)
-        # tgt = tgt + self.dropout_intra(tgt2)
-        # tgt = self.norm_intra(tgt)
+        tgt2 = self.attn_intra(
+            q.flatten(0, 1).transpose(0, 1), 
+            k.flatten(0, 1).transpose(0, 1), 
+            tgt.flatten(0, 1).transpose(0, 1),
+        )[0].transpose(0, 1).reshape(q.shape)
+        tgt = tgt + self.dropout_intra(tgt2)
+        tgt = self.norm_intra(tgt)
 
         q_inter = k_inter = tgt_inter = torch.swapdims(tgt, 1, 2)
         tgt2_inter = self.attn_inter(
@@ -544,15 +500,7 @@ class DeformableCompositeTransformerDecoderLayer(nn.Module):
         tgt_inter = torch.swapdims(self.norm_inter(tgt_inter), 1, 2)
 
         # cross attention
-        # print(reference_points.shape)
-        # print(tgt_inter.shape)
-        # print(query_pos.shape)
-        if len(reference_points.shape) == 4:
-            reference_points_loc = reference_points[:, :, None, :, :].repeat(1, 1, tgt_inter.shape[2], 1, 1)
-        else:
-            assert reference_points.shape[2] == tgt_inter.shape[2]
-            reference_points_loc = reference_points
-        #reference_points_loc = reference_points[:, :, None, :, :].repeat(1, 1, tgt_inter.shape[2], 1, 1)
+        reference_points_loc = reference_points[:, :, None, :, :].repeat(1, 1, tgt_inter.shape[2], 1, 1)
         tgt2 = self.attn_cross(self.with_pos_embed(tgt_inter, query_pos).flatten(1, 2),
                                reference_points_loc.flatten(1, 2),
                                src, src_spatial_shapes, level_start_index, src_padding_mask).reshape(tgt_inter.shape)
@@ -560,30 +508,17 @@ class DeformableCompositeTransformerDecoderLayer(nn.Module):
         tgt = self.norm_cross(tgt_inter)
 
         # text branch - intra self attn (word-wise)
-        shortcut_text = tgt_text
         q_text = k_text = self.with_pos_embed(tgt_text, query_pos_text)
         tgt2_text = self.attn_intra_text(
-                q_text.flatten(0, 1).transpose(0, 1),
-                k_text.flatten(0, 1).transpose(0, 1),
-                tgt_text.flatten(0, 1).transpose(0, 1),
-            )[0].transpose(0, 1).reshape(q_text.shape)
-        tgt_circonv_text = self.drop_path_text(self.circonv_text(shortcut_text+query_pos_text))
-        tgt_text = shortcut_text + self.norm_intra_text(self.drop_path_text(tgt_text) + tgt_circonv_text)
-        tgt_text = tgt_text + self.drop_path_text(self.norm_fuse_text(self.mlp_fuse_text(tgt2_text)))
+            q_text.flatten(0, 1).transpose(0, 1), 
+            k_text.flatten(0, 1).transpose(0, 1),
+            tgt_text.flatten(0, 1).transpose(0, 1),
+            text_padding_mask.flatten(0, 1) if text_padding_mask is not None else None,
+        )[0].transpose(0, 1).reshape(tgt_text.shape)
+        tgt_text = tgt_text + self.dropout_intra_text(tgt2_text)
+        tgt_text = self.norm_intra_text(tgt_text)
 
-
-        # # text branch - inter self attn (object-wise)
-        # q_text = k_text = self.with_pos_embed(tgt_text, query_pos_text)
-        # tgt2_text_inter = self.attn_intra_text(
-        #     q_text.flatten(0, 1).transpose(0, 1), 
-        #     k_text.flatten(0, 1).transpose(0, 1),
-        #     tgt_text.flatten(0, 1).transpose(0, 1),
-        #     text_padding_mask.flatten(0, 1) if text_padding_mask is not None else None,
-        # )[0].transpose(0, 1).reshape(tgt_text.shape)
-        # tgt_text = tgt_text + self.dropout_intra_text(tgt2_text)
-        # tgt_text = self.norm_intra_text(tgt_text)
-
-        
+        # text branch - inter self attn (object-wise)
         q_text_inter = k_text_inter = tgt_text_inter = torch.swapdims(tgt_text, 1, 2)
         tgt2_text_inter = self.attn_inter_text(
             q_text_inter.flatten(0, 1).transpose(0, 1),
@@ -595,16 +530,7 @@ class DeformableCompositeTransformerDecoderLayer(nn.Module):
         tgt_text_inter = torch.swapdims(self.norm_inter_text(tgt_text_inter), 1, 2)
 
         # text branch - cross attn
-       
-        if len(reference_points1.shape) == 4:
-            reference_points_text = reference_points1[:, :, None, :, :].repeat(1, 1, tgt_text_inter.shape[2], 1, 1)
-        else:
-            #assert reference_points1.shape[2] == tgt_text_inter.shape[2]
-            reference_points_text = reference_points1[:, :, None,:,:].repeat(1, 1,tgt_text_inter.shape[2], 1,1)
-            
-        
-
-        # query_pos_text.reshape(query_pos_text.shape[0], query_pos_text.shape[1], 16, query_pos_text.shape[3])
+        reference_points_text = reference_points[:, :, None, :, :].repeat(1, 1, tgt_text_inter.shape[2], 1, 1)
         tgt2_text_cm = self.attn_cross_text(self.with_pos_embed(tgt_text_inter, query_pos_text).flatten(1, 2),
                                             reference_points_text.flatten(1, 2),
                                             src, src_spatial_shapes, level_start_index, src_padding_mask).reshape(tgt_text_inter.shape)
@@ -628,16 +554,10 @@ class DeformableCompositeTransformerDecoder(nn.Module):
         # hack implementation for iterative bounding box refinement and two-stage Deformable DETR
         self.bbox_embed = None
         self.class_embed = None
-        self.ctrl_point_coord = None
-        d_model = 256
-        self.ref_point_head = MLP(d_model, d_model, d_model, 2)
 
-    def forward(self, tgt, tgt_text, reference_points, reference_points1, src, src_spatial_shapes, src_level_start_index, src_valid_ratios,
+    def forward(self, tgt, tgt_text, reference_points, src, src_spatial_shapes, src_level_start_index, src_valid_ratios,
                 query_pos=None, query_pos_text=None, src_padding_mask=None, text_padding_mask=None):
         output, output_text = tgt, tgt_text
-
-        assert query_pos is None
-        assert reference_points.shape[-1] == 2
 
         intermediate = []
         intermediate_text = []
@@ -648,21 +568,8 @@ class DeformableCompositeTransformerDecoder(nn.Module):
                                          * torch.cat([src_valid_ratios, src_valid_ratios], -1)[:, None]
             else:
                 assert reference_points.shape[-1] == 2
-                reference_points_input = reference_points[:, :, :, None] * src_valid_ratios[:, None, None]
-                #reference_points_input = reference_points[:, :, None] * src_valid_ratios[:, None]
-
-            query_pos = gen_point_pos_embed(reference_points_input[:, :, :, 0, :])#added
-            
-            query_pos = self.ref_point_head(query_pos) # projection
-            if reference_points1.shape[-1] == 4:
-                reference_points_input1 = reference_points1[:, :, None] \
-                                         * torch.cat([src_valid_ratios, src_valid_ratios], -1)[:, None]
-            else:
-                assert reference_points1.shape[-1] == 2
-                reference_points_input1 = reference_points1[:, :, None] * src_valid_ratios[:, None]
-            
-
-            output, output_text = layer(output, query_pos, output_text, query_pos_text, reference_points_input, reference_points_input1, src, src_spatial_shapes, src_level_start_index, src_padding_mask, text_padding_mask)
+                reference_points_input = reference_points[:, :, None] * src_valid_ratios[:, None]
+            output, output_text = layer(output, query_pos, output_text, query_pos_text, reference_points_input, src, src_spatial_shapes, src_level_start_index, src_padding_mask, text_padding_mask)
 
             if self.return_intermediate:
                 intermediate.append(output)

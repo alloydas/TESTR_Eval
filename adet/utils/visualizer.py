@@ -57,6 +57,117 @@ class TextVisualizer(Visualizer):
                 s += u'口'
         return s
 
+#     def _decode_recognition(self, rec):
+#         CTLABELS = [" ",    "!",    '"',     "#",     "$",    "%",    "&",    "'",    "(",    ")",    "*",    "+",    ",",
+#     "-",
+#     ".",
+#     "/",
+#     "0",
+#     "1",
+#     "2",
+#     "3",
+#     "4",
+#     "5",
+#     "6",
+#     "7",
+#     "8",
+#     "9",
+#     ":",
+#     ";",
+#     "<",
+#     "=",
+#     ">",
+#     "?",
+#     "@",
+#     "A",
+#     "B",
+#     "C",
+#     "D",
+#     "E",
+#     "F",
+#     "G",
+#     "H",
+#     "I",
+#     "J",
+#     "K",
+#     "L",
+#     "M",
+#     "N",
+#     "O",
+#     "P",
+#     "Q",
+#     "R",
+#     "S",
+#     "T",
+#     "U",
+#     "V",
+#     "W",
+#     "X",
+#     "Y",
+#     "Z",
+#     "[",
+#     "\\",
+#     "]",
+#     "^",
+#     "_",
+#     "`",
+#     "a",
+#     "b",
+#     "c",
+#     "d",
+#     "e",
+#     "f",
+#     "g",
+#     "h",
+#     "i",
+#     "j",
+#     "k",
+#     "l",
+#     "m",
+#     "n",
+#     "o",
+#     "p",
+#     "q",
+#     "r",
+#     "s",
+#     "t",
+#     "u",
+#     "v",
+#     "w",
+#     "x",
+#     "y",
+#     "z",
+#     "{",
+#     "|",
+#     "}",
+#     "~",
+#     "ˋ",
+#     "ˊ",
+#     "﹒",
+#     "ˀ",
+#     "˜",
+#     "ˇ",
+#     "ˆ",
+#     "˒",
+#     "‑",
+# ]       
+#         s = ''
+#         for c in rec:
+#             c = int(c)
+#             if 0<c < len(CTLABELS):
+#                 # if not "ctw1500" in self.dataset_name and not "vintext" in self.dataset_name:
+#                 #     if CTLABELS[c-1] in "_0123456789abcdefghijklmnopqrstuvwxyz":
+#             #     s += CTLABELS[c]
+#             # else:
+#                 s += CTLABELS[c]
+#             elif c == 104:
+#                 s += "口"
+#         #if "vintext" in self.dataset_name:
+#         s = _vintext_decoder(s)
+#         return s
+
+    
+
     def _ctc_decode_recognition(self, rec):
         # ctc decoding
         last_char = False
@@ -77,19 +188,29 @@ class TextVisualizer(Visualizer):
                 last_char = False
         return s
 
+    
+
     def overlay_instances(self, ctrl_pnts, recs, scores, alpha=0.5):
-        color = (0.1, 0.2, 0.5)
+        color = (0, 0.9, 0)
 
         for ctrl_pnt, rec, score in zip(ctrl_pnts, recs, scores):
             polygon = self._ctrl_pnt_to_poly(ctrl_pnt)
-            self.draw_polygon(polygon, color, alpha=alpha)
+            self.draw_polygon(polygon, color, alpha=0.1)
 
             # draw text in the top left corner
             text = self._decode_recognition(rec)
+            # print(text)
+            # if text == "Lets":
+            #     text = "Let's"
+
+
             text = "{:.3f}: {}".format(score, text)
-            lighter_color = self._change_color_brightness(color, brightness_factor=0.7)
-            text_pos = polygon[0]
-            horiz_align = "left"
+            text = "{}".format(text)
+
+            
+            lighter_color = self._change_color_brightness(color, brightness_factor=0.1)
+            text_pos = polygon[15]
+            horiz_align = "right"
             font_size = self._default_font_size
 
             self.draw_text(
@@ -97,7 +218,7 @@ class TextVisualizer(Visualizer):
                 text_pos,
                 color=lighter_color,
                 horizontal_alignment=horiz_align,
-                font_size=font_size,
+                font_size=13,
                 draw_chinese=False if self.voc_size == 96 else True
             )
     
@@ -166,3 +287,61 @@ class TextVisualizer(Visualizer):
                 rotation=rotation,
             )
         return self.output
+
+dictionary = "aàáạảãâầấậẩẫăằắặẳẵAÀÁẠẢÃĂẰẮẶẲẴÂẦẤẬẨẪeèéẹẻẽêềếệểễEÈÉẸẺẼÊỀẾỆỂỄoòóọỏõôồốộổỗơờớợởỡOÒÓỌỎÕÔỒỐỘỔỖƠỜỚỢỞỠiìíịỉĩIÌÍỊỈĨuùúụủũưừứựửữƯỪỨỰỬỮUÙÚỤỦŨyỳýỵỷỹYỲÝỴỶỸ"
+
+
+def make_groups():
+    #dictionary = "aàáạảãâầấậẩẫăằắặẳẵAÀÁẠẢÃĂẰẮẶẲẴÂẦẤẬẨẪeèéẹẻẽêềếệểễEÈÉẸẺẼÊỀẾỆỂỄoòóọỏõôồốộổỗơờớợởỡOÒÓỌỎÕÔỒỐỘỔỖƠỜỚỢỞỠiìíịỉĩIÌÍỊỈĨuùúụủũưừứựửữƯỪỨỰỬỮUÙÚỤỦŨyỳýỵỷỹYỲÝỴỶỸ"
+
+    groups = []
+    i = 0
+    while i < len(dictionary) - 5:
+        group = [c for c in dictionary[i : i + 6]]
+        i += 6
+        groups.append(group)
+    return groups
+
+
+groups = make_groups()
+
+TONES = ["", "ˋ", "ˊ", "﹒", "ˀ", "˜"]
+SOURCES = ["ă", "â", "Ă", "Â", "ê", "Ê", "ô", "ơ", "Ô", "Ơ", "ư", "Ư", "Đ", "đ"]
+TARGETS = ["aˇ", "aˆ", "Aˇ", "Aˆ", "eˆ", "Eˆ", "oˆ", "o˒", "Oˆ", "O˒", "u˒", "U˒", "D-", "d‑"]
+
+
+def correct_tone_position(word):
+    word = word[:-1]
+    if len(word) < 2:
+        pass
+    first_ord_char = ""
+    second_order_char = ""
+    for char in word:
+        for group in groups:
+            if char in group:
+                second_order_char = first_ord_char
+                first_ord_char = group[0]
+    if word[-1] == first_ord_char and second_order_char != "":
+        pair_chars = ["qu", "Qu", "qU", "QU", "gi", "Gi", "gI", "GI"]
+        for pair in pair_chars:
+            if pair in word and second_order_char in ["u", "U", "i", "I"]:
+                return first_ord_char
+        return second_order_char
+    return first_ord_char
+
+
+def _vintext_decoder(recognition):
+    for char in TARGETS:
+        recognition = recognition.replace(char, SOURCES[TARGETS.index(char)])
+    if len(recognition) < 1:
+        return recognition
+    if recognition[-1] in TONES:
+        if len(recognition) < 2:
+            return recognition
+        replace_char = correct_tone_position(recognition)
+        tone = recognition[-1]
+        recognition = recognition[:-1]
+        for group in groups:
+            if replace_char in group:
+                recognition = recognition.replace(replace_char, group[TONES.index(tone)])
+    return recognition  

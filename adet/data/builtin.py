@@ -31,6 +31,9 @@ _PREDEFINED_SPLITS_TEXT = {
     "art_train": ("ArT/rename_artimg_train", "ArT/annotations/abcnet_art_train.json"), 
     "lsvt_train": ("LSVT/rename_lsvtimg_train", "LSVT/annotations/abcnet_lsvt_train.json"), 
     "chnsyn_train": ("ChnSyn/syn_130k_images", "ChnSyn/annotations/chn_syntext.json"),
+    "vintext_train": ("vintext/train_images", "vintext/train.json"),
+    "vintext_val": ("vintext/val_image", "vintext/val.json"),
+    "vintext_test": ("vintext/test_image", "vintext/test.json"),
     # datasets with polygon annotations
     "totaltext_poly_train": ("totaltext/train_images", "totaltext/train_poly.json"),
     "totaltext_poly_val": ("totaltext/test_images", "totaltext/test_poly.json"),
@@ -44,6 +47,7 @@ _PREDEFINED_SPLITS_TEXT = {
     "icdar2019_train": ("icdar2019/train_images", "icdar2019/train_poly.json"),
     "textocr_train": ("textocr/train_images", "textocr/annotations/train_poly.json"),
     "textocr_val": ("textocr/train_images", "textocr/annotations/val_poly.json"),
+    # "rects": ("rects/ReCTS_test_images", "rects.json"),
 }
 
 metadata_text = {

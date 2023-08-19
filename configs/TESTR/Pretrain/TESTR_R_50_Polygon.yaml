@@ -2,7 +2,7 @@ _BASE_: "Base-Pretrain-Polygon.yaml"
 MODEL:
   NUMBER_OF_CHANNEL: [192, 384, 768]
   WEIGHTS: "swin_tiny_patch4_window7_224_22k.pth"
-  #WEIGHTS: "detectron2://ImageNetPretrained/torchvision/R-50.pkl"
+  # WEIGHTS: "output/TESTR/pretrain/TESTR_SWINT_Polygon/model_final.pth"
   #RESNETS:
   #  DEPTH: 50
   TRANSFORMER:
@@ -17,13 +17,13 @@ MODEL:
     ENC_N_POINTS: 4
     DEC_N_POINTS: 4
 SOLVER:
-  IMS_PER_BATCH: 1
-  BASE_LR: 2e-5
-  LR_BACKBONE: 2e-6
+  IMS_PER_BATCH: 4
+  BASE_LR: 4e-5
+  LR_BACKBONE: 4e-6
   WARMUP_ITERS: 0
-  STEPS: (3000000,3500000)
+  STEPS: (2000000,2500000)
   MAX_ITER: 4000000
   CHECKPOINT_PERIOD: 10000
 TEST:
   EVAL_PERIOD: 10000
-OUTPUT_DIR: "output/TESTR/pretrain/TESTR_SWINT_Polygon_only_synth"
+OUTPUT_DIR: "output/TESTR/pretrain/only_tt"
