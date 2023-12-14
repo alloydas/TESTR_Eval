@@ -1,5 +1,4 @@
-# DA-TextSpotter: Domain Agnostic Text Spotting Transformer
-
+# Harnessing the Power of Multi-Lingual Datasets for Pre-training: Towards Enhancing Text Spotting Performance
 
 
 #### Installation
